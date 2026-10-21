@@ -1179,6 +1179,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-web-recovery"
+version = "0.1.0"
+source = "git+https://github.com/zuujiscom/craft-libs?branch=web-recovery#fd0185e93481032512b73a87c836ff3fa7b8c2b6"
+dependencies = [
+ "js-sys",
+ "log",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "craft-window"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=92d392cff132eaf53e13afff77f38b5c11b73aa0#92d392cff132eaf53e13afff77f38b5c11b73aa0"
@@ -7111,6 +7123,7 @@ version = "0.17.0"
 dependencies = [
  "craft-web-api",
  "craft-web-host",
+ "craft-web-recovery",
  "eframe",
  "egui",
  "js-sys",
