@@ -7,6 +7,7 @@
 //! Differences from the desktop app: no TCP control channel; Open and Insert › Pictures use the
 //! browser file picker (bytes arrive through `Services::inbox`); Save and Export download.
 //! Preferences (theme, interface size, editing options…) are kept in `localStorage` (`prefs`).
+//! Unsaved documents are copied to IndexedDB and offered back after a crash or reload (`recovery`).
 //! URL flags: `?webgl` forces WebGL2; `?sample` opens the sample document.
 //! `?host=parent` (inside an `<iframe>`) talks to a same-origin parent page instead: it sends the
 //! document to open and stores what WordCraft saves (`host`), and `&author=` names the user for
@@ -20,6 +21,8 @@ mod save_fallback;
 
 #[cfg(target_arch = "wasm32")]
 mod host;
+#[cfg(target_arch = "wasm32")]
+mod recovery;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
