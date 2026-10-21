@@ -27,6 +27,9 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
+        // Copies of unsaved documents a closed or crashed tab left, read before the app is built.
+        let startup = crate::recovery::open().await;
+        let mut startup = Some(startup);
         let dirty = Rc::new(Cell::new(false));
         let saves = AsyncSaves::default();
         if let Err(e) = guard_unload(dirty.clone(), saves.clone()) {
@@ -65,11 +68,30 @@ pub fn start() {
                     // Pasted pictures wait apart from dropped files: the app inserts one only when the page is the edit target (#1349).
                     app.services.pasted = Some(pasted);
                     app.autosave = false;
+                    let mut adopted = None;
+                    let mut recovered_message = None;
+                    let (store, warnings) = match startup.take() {
+                        Some(st) => {
+                            if !sample && let Some((id, key, message)) = crate::recovery::restore(&mut app, &st.recovered) {
+                                adopted = Some((id, key));
+                                recovered_message = Some(message);
+                            }
+                            (st.store, st.warnings)
+                        }
+                        None => return Err("recovery store missing".into()),
+                    };
                     // No document to show: start on File › Home, as the desktop app does (#766).
-                    if !sample {
+                    if !sample && adopted.is_none() {
                         app.start_screen();
                     }
-                    Ok(Box::new(WebShell { app, inbox, messages }))
+                    if let Some(m) = recovered_message {
+                        app.status(m);
+                    }
+                    for w in warnings {
+                        log::warn!("crash recovery: {w}");
+                    }
+                    let recovery = crate::recovery::WebRecovery::new(store, adopted);
+                    Ok(Box::new(WebShell { app, inbox, messages, recovery }))
                 }),
             )
             .await;
@@ -92,6 +114,7 @@ struct WebShell {
     app: WordApp,
     inbox: Inbox,
     messages: Rc<RefCell<Vec<String>>>,
+    recovery: crate::recovery::WebRecovery,
 }
 
 impl eframe::App for WebShell {
@@ -116,6 +139,7 @@ impl eframe::App for WebShell {
             self.app.status(msg);
         }
         self.app.logic(ctx);
+        self.recovery.tick(&self.app, ctx);
     }
 
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {

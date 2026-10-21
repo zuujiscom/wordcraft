@@ -6,9 +6,12 @@
 //!
 //! Differences from the desktop app: no TCP control channel; Open and Insert › Pictures use the
 //! browser file picker (bytes arrive through `Services::inbox`); Save and Export download.
+//! Unsaved documents are copied to IndexedDB and offered back after a crash or reload (`recovery`).
 //! URL flags: `?webgl` forces WebGL2; `?sample` opens the sample document.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+#[cfg(target_arch = "wasm32")]
+mod recovery;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
