@@ -27,6 +27,9 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
+        // Copies of unsaved documents a closed or crashed tab left, read before the app is built.
+        let startup = crate::recovery::open().await;
+        let mut startup = Some(startup);
         let dirty = Rc::new(Cell::new(false));
         let saves = AsyncSaves::default();
         if let Err(e) = guard_unload(dirty.clone(), saves.clone()) {
@@ -75,11 +78,30 @@ pub fn start() {
                         app.session.set_document(doc);
                     }
                     let prefs = crate::prefs::PrefsSync::new(stored);
+                    let mut adopted = None;
+                    let mut recovered_message = None;
+                    let (store, warnings) = match startup.take() {
+                        Some(st) => {
+                            if !sample && let Some((id, key, message)) = crate::recovery::restore(&mut app, &st.recovered) {
+                                adopted = Some((id, key));
+                                recovered_message = Some(message);
+                            }
+                            (st.store, st.warnings)
+                        }
+                        None => return Err("recovery store missing".into()),
+                    };
                     // No document to show: start on File › Home, as the desktop app does (#766).
-                    if !sample {
+                    if !sample && adopted.is_none() {
                         app.start_screen();
                     }
-                    Ok(Box::new(WebShell { app, inbox, messages, prefs }))
+                    if let Some(m) = recovered_message {
+                        app.status(m);
+                    }
+                    for w in warnings {
+                        log::warn!("crash recovery: {w}");
+                    }
+                    let recovery = crate::recovery::WebRecovery::new(store, adopted);
+                    Ok(Box::new(WebShell { app, inbox, messages, prefs, recovery }))
                 }),
             )
             .await;
@@ -103,6 +125,7 @@ struct WebShell {
     inbox: Inbox,
     messages: Rc<RefCell<Vec<String>>>,
     prefs: crate::prefs::PrefsSync,
+    recovery: crate::recovery::WebRecovery,
 }
 
 fn local_storage() -> Option<web_sys::Storage> {
@@ -147,6 +170,7 @@ impl eframe::App for WebShell {
                 None => log::warn!("preferences: browser storage is unavailable"),
             }
         }
+        self.recovery.tick(&self.app, ctx);
     }
 
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
